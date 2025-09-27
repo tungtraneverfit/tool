@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  ssh-tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ssh-remote-tool
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount thư mục chứa SSH keys từ host vào container
+      - ~/.ssh:/app/keys:ro
+      # Có thể mount thêm thư mục Downloads nếu key ở đó
+      - ~/Downloads:/app/downloads:ro
+    environment:
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    networks:
+      - ssh-tool-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ssh-tool-network:
+    driver: bridge

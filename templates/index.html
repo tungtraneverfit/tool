@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Remote Command Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        
+        .row {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .col {
+            flex: 1;
+        }
+        
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+        
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .log-container {
+            margin-top: 30px;
+        }
+        
+        .log-output {
+            background-color: #1e1e1e;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-line;
+            line-height: 1.4;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .status.running {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status.completed {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status.fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            text-align: center;
+            background: #f8f9fa;
+            border: 2px solid #ddd;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        .tab:first-child {
+            border-radius: 5px 0 0 5px;
+        }
+        
+        .tab:last-child {
+            border-radius: 0 5px 5px 0;
+            border-left: none;
+        }
+        
+        .tab.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .script-type-selector {
+            margin-bottom: 15px;
+        }
+        
+        .script-type-selector select {
+            width: auto;
+            display: inline-block;
+            margin-left: 10px;
+        }
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .example h3 {
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        
+        .example code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 300px;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        .notification.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .notification.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .notification.fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SSH Remote Command Tool</h1>
+        
+        <div class="example">
+            <h3>Ví dụ sử dụng:</h3>
+            <p><strong>Host:</strong> <code>47.236.162.79</code></p>
+            <p><strong>Username:</strong> <code>root</code></p>
+            <p><strong>Key Path:</strong> <code>/app/keys/id_rsa</code> hoặc <code>/app/downloads/test.pem</code></p>
+            <p><strong>Command:</strong> <code>ls -la</code> hoặc <code>docker ps</code></p>
+            <p><em>💡 Key files được mount từ ~/.ssh và ~/Downloads vào container</em></p>
+        </div>
+        
+        <form id="sshForm">
+            <div class="row">
+                <div class="col">
+                    <div class="form-group">
+                        <label for="host">Host/IP Address *</label>
+                        <input type="text" id="host" name="host" placeholder="ví dụ: 47.236.162.79" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-group">
+                        <label for="port">Port</label>
+                        <input type="number" id="port" name="port" value="22" placeholder="22">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col">
+                    <div class="form-group">
+                        <label for="username">Username *</label>
+                        <input type="text" id="username" name="username" placeholder="ví dụ: root, ubuntu" required>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="form-group">
+                        <label for="key_path">Private Key Path *</label>
+                        <input type="text" id="key_path" name="key_path" placeholder="ví dụ: /app/keys/id_rsa, /app/downloads/test.pem" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-container">
+                <div class="tab active" onclick="switchTab('command')">💻 Bash Command</div>
+                <div class="tab" onclick="switchTab('script')">📜 Custom Script</div>
+            </div>
+            
+            <!-- Command Tab -->
+            <div id="command-tab" class="tab-content active">
+                <div class="form-group">
+                    <label for="command">Bash Command *</label>
+                    <textarea id="command" name="command" rows="3" placeholder="ví dụ: ls -la, docker ps, cat /etc/os-release
+
+Lưu ý: Lệnh sẽ được wrap trong bash script với verbose logging (set -x)"></textarea>
+                </div>
+            </div>
+            
+            <!-- Script Tab -->
+            <div id="script-tab" class="tab-content">
+                <div class="script-type-selector">
+                    <label for="script_type">Script Type:</label>
+                    <select id="script_type" name="script_type">
+                        <option value="bash">Bash Script</option>
+                        <option value="python">Python Script</option>
+                        <option value="sh">Shell Script</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="script_content">Script Content *</label>
+                    <textarea id="script_content" name="script_content" rows="10" placeholder="Nhập nội dung script...
+
+Ví dụ Bash:
+#!/bin/bash
+echo 'Hello World'
+ls -la
+df -h
+
+Ví dụ Python:
+import os
+print('Current directory:', os.getcwd())
+print('Python version:', sys.version)"></textarea>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn" id="executeBtn">Thực thi</button>
+        </form>
+        
+        <div class="log-container" id="logContainer" style="display: none;">
+            <h3>📋 Kết quả thực thi:</h3>
+            <div id="statusContainer"></div>
+            <div class="log-output" id="logOutput"></div>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('sshForm');
+        const executeBtn = document.getElementById('executeBtn');
+        const logContainer = document.getElementById('logContainer');
+        const logOutput = document.getElementById('logOutput');
+        const statusContainer = document.getElementById('statusContainer');
+        
+        let currentTab = 'command';
+        
+        // Tab switching function
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Update button text
+            executeBtn.textContent = tabName === 'command' ? 'Thực thi lệnh' : 'Chạy script';
+        }
+        
+        // Notification functions
+        function showNotification(title, message, type = 'info') {
+            // Browser notification nếu được phép
+            if (Notification.permission === 'granted') {
+                const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '❌';
+                new Notification(`${icon} ${title}`, {
+                    body: message,
+                    icon: '/favicon.ico'
+                });
+            }
+            
+            // Visual notification
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <strong>${title}</strong><br>
+                ${message}
+            `;
+            document.body.appendChild(notification);
+            
+            // Auto remove sau 5 giây
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+        
+        function playNotificationSound(type = 'success') {
+            try {
+                const audio = new Audio();
+                if (type === 'success') {
+                    audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmgYElGl4/G2ZBkFJ3fM';
+                } else {
+                    audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSgFJHfH8N2QQAoUXrTp66hVFApGn+DyvmgYElGl4/G2ZBwFJnfE8N2QQgwTXbzp66hVGQhGnt';
+                }
+                audio.play().catch(() => {}); // Ignore errors
+            } catch (e) {
+                // Ignore audio errors
+            }
+        }
+        
+        // Request notification permission
+        if (Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                host: document.getElementById('host').value,
+                port: parseInt(document.getElementById('port').value) || 22,
+                username: document.getElementById('username').value,
+                key_path: document.getElementById('key_path').value
+            };
+            
+            // Add command or script based on current tab
+            if (currentTab === 'command') {
+                formData.command = document.getElementById('command').value;
+                if (!formData.command) {
+                    alert('Vui lòng nhập command');
+                    return;
+                }
+            } else {
+                formData.script_content = document.getElementById('script_content').value;
+                formData.script_type = document.getElementById('script_type').value;
+                if (!formData.script_content) {
+                    alert('Vui lòng nhập script content');
+                    return;
+                }
+            }
+            
+            // Disable form
+            executeBtn.disabled = true;
+            executeBtn.textContent = currentTab === 'command' ? 'Đang thực thi...' : 'Đang chạy script...';
+            
+            // Show log container
+            logContainer.style.display = 'block';
+            const taskType = currentTab === 'command' ? 'lệnh' : 'script';
+            statusContainer.innerHTML = `<div class="status running"><div class="spinner"></div>Đang kết nối và thực thi ${taskType}...</div>`;
+            logOutput.textContent = 'Đang chờ kết quả...';
+            
+            try {
+                // Send request
+                const response = await fetch('/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    const commandId = result.command_id;
+                    
+                    // Clear previous log
+                    logOutput.textContent = '';
+                    
+                    // Start streaming logs
+                    const eventSource = new EventSource(`/stream/${commandId}`);
+                    
+                    eventSource.onmessage = function(event) {
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            if (data.type === 'log') {
+                                // Append log message
+                                const currentLog = logOutput.textContent;
+                                logOutput.textContent = currentLog + data.message + '\n';
+                                
+                                // Auto scroll to bottom
+                                logOutput.scrollTop = logOutput.scrollHeight;
+                                
+                            } else if (data.type === 'complete') {
+                                // Command completed
+                                eventSource.close();
+                                
+                                // Get final result
+                                setTimeout(async () => {
+                                    try {
+                                        const resultResponse = await fetch(`/result/${commandId}`);
+                                        const resultData = await resultResponse.json();
+                                        handleCommandComplete(resultData);
+                                    } catch (error) {
+                                        console.error('Error getting final result:', error);
+                                    }
+                                }, 500);
+                                
+                            } else if (data.type === 'error') {
+                                eventSource.close();
+                                statusContainer.innerHTML = `
+                                    <div class="status error">
+                                        ❌ Stream Error: ${data.message}
+                                    </div>
+                                `;
+                                executeBtn.disabled = false;
+                                executeBtn.textContent = 'Thực thi lệnh';
+                            }
+                            
+                        } catch (error) {
+                            console.error('Error parsing stream data:', error);
+                        }
+                    };
+                    
+                    eventSource.onerror = function(event) {
+                        console.error('EventSource error:', event);
+                        eventSource.close();
+                        
+                        // Fallback to polling
+                        setTimeout(async () => {
+                            try {
+                                const resultResponse = await fetch(`/result/${commandId}`);
+                                const resultData = await resultResponse.json();
+                                handleCommandComplete(resultData);
+                            } catch (error) {
+                                statusContainer.innerHTML = `
+                                    <div class="status error">
+                                        ❌ Connection lost: ${error.message}
+                                    </div>
+                                `;
+                                executeBtn.disabled = false;
+                                executeBtn.textContent = 'Thực thi lệnh';
+                            }
+                        }, 1000);
+                    };
+                    
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+                
+            } catch (error) {
+                statusContainer.innerHTML = `
+                    <div class="status error">
+                        ❌ Lỗi: ${error.message}
+                    </div>
+                `;
+                logOutput.textContent = `Error: ${error.message}`;
+                executeBtn.disabled = false;
+                executeBtn.textContent = 'Thực thi lệnh';
+            }
+        });
+        
+        // Function to handle command completion
+        function handleCommandComplete(resultData) {
+                            
+            if (resultData.status === 'completed') {
+                let typeText = 'Lệnh';
+                if (resultData.type === 'script') {
+                    typeText = 'Script';
+                } else if (resultData.type === 'bash_command') {
+                    typeText = 'Bash Command';
+                }
+                
+                statusContainer.innerHTML = `
+                    <div class="status completed">
+                        ${resultData.status_message || '✅ Thực thi thành công'} trên ${resultData.host}
+                        <br>Exit code: ${resultData.exit_status}
+                        ${resultData.execution_time ? `<br>⏱️ Thời gian: ${resultData.execution_time}s` : ''}
+                    </div>
+                `;
+                
+                // Show success notification
+                const taskType = resultData.type === 'script' ? 'Script' : 'Lệnh';
+                showNotification(
+                    'Thực thi thành công!', 
+                    `${taskType} đã hoàn thành trong ${resultData.execution_time || 0}s`,
+                    'success'
+                );
+                playNotificationSound('success');
+                
+            } else if (resultData.status === 'warning') {
+                let typeText = 'Lệnh';
+                if (resultData.type === 'script') {
+                    typeText = 'Script';
+                } else if (resultData.type === 'bash_command') {
+                    typeText = 'Bash Command';
+                }
+                
+                statusContainer.innerHTML = `
+                    <div class="status warning">
+                        ${resultData.status_message || '⚠️ Có lỗi xảy ra'} trên ${resultData.host}
+                        <br>Exit code: ${resultData.exit_status}
+                        ${resultData.execution_time ? `<br>⏱️ Thời gian: ${resultData.execution_time}s` : ''}
+                    </div>
+                `;
+                
+                // Show warning notification
+                const taskType = resultData.type === 'script' ? 'Script' : 'Lệnh';
+                showNotification(
+                    'Có lỗi xảy ra!', 
+                    `${taskType} hoàn thành với lỗi trong ${resultData.execution_time || 0}s (Exit code: ${resultData.exit_status})`,
+                    'warning'
+                );
+                playNotificationSound('warning');
+                
+            } else if (resultData.status === 'fail') {
+                statusContainer.innerHTML = `
+                    <div class="status fail">
+                        ${resultData.status_message || '❌ Kết nối thất bại'} trên ${resultData.host}
+                        ${resultData.execution_time ? `<br>⏱️ Thời gian: ${resultData.execution_time}s` : ''}
+                    </div>
+                `;
+                
+                // Show fail notification
+                const taskType = resultData.type === 'script' ? 'Script' : 'Lệnh';
+                showNotification(
+                    'Kết nối thất bại!', 
+                    `${taskType} không thể thực hiện sau ${resultData.execution_time || 0}s`,
+                    'fail'
+                );
+                playNotificationSound('fail');
+            }
+            
+            // Re-enable form
+            executeBtn.disabled = false;
+            executeBtn.textContent = 'Thực thi lệnh';
+        }
+    </script>
+</body>
+</html>
