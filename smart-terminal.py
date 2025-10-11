@@ -45,6 +45,12 @@ class SmartTerminal:
         if self.history_file.exists():
             with open(self.history_file, 'r') as f:
                 self.command_history = [line.strip() for line in f.readlines() if line.strip()]
+        
+        # Debug: Print history info on startup
+        print(f"{GRAY}📚 Loaded {len(self.command_history)} commands from history{RESET}")
+        if len(self.command_history) > 0:
+            print(f"{GRAY}   Last command: {self.command_history[-1][:50]}{'...' if len(self.command_history[-1]) > 50 else ''}{RESET}")
+    
     
     def save_history(self):
         """Save command history"""
@@ -916,12 +922,40 @@ class SmartTerminal:
         """Get current git branch if in a git repository"""
         try:
             result = subprocess.run(['git', 'branch', '--show-current'], 
-                                  capture_output=True, text=True, stderr=subprocess.DEVNULL)
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
+                                  stdout=subprocess.PIPE, 
+                                  stderr=subprocess.PIPE, 
+                                  text=True)
+            branch = result.stdout.strip() if result.returncode == 0 else None
+            return branch
+        except Exception as e:
+            return None
+    
+    def get_git_status(self):
+        """Get git status info for prompt styling"""
+        try:
+            # Check if there are staged changes
+            result_staged = subprocess.run(['git', 'diff', '--cached', '--quiet'], 
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            has_staged = result_staged.returncode != 0
+            
+            # Check if there are unstaged changes
+            result_unstaged = subprocess.run(['git', 'diff', '--quiet'], 
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            has_unstaged = result_unstaged.returncode != 0
+            
+            # Check if there are untracked files
+            result_untracked = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard'], 
+                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            has_untracked = bool(result_untracked.stdout.strip())
+            
+            return {
+                'staged': has_staged,
+                'unstaged': has_unstaged,
+                'untracked': has_untracked,
+                'clean': not (has_staged or has_unstaged or has_untracked)
+            }
         except:
-            pass
-        return None
+            return {'staged': False, 'unstaged': False, 'untracked': False, 'clean': True}
 
     def get_prompt(self):
         """Get custom prompt like a real terminal"""
@@ -933,15 +967,29 @@ class SmartTerminal:
         else:
             display_path = os.path.basename(cwd)
         
-        # Create a colorful prompt similar to zsh
+        # Get user info
         username = os.getenv('USER', 'user')
-        hostname = os.getenv('HOSTNAME', os.uname().nodename.split('.')[0])
         
-        # Add git branch if available
+        # Get git branch if available
         git_branch = self.get_git_branch()
-        git_info = f" {GRAY}(git:{GREEN}{git_branch}{GRAY}){RESET}" if git_branch else ""
         
-        return f"{GREEN}{username}@{hostname}{RESET}:{BLUE}{display_path}{RESET}{git_info}$ "
+        if git_branch:
+            # Get git status for styling
+            git_status = self.get_git_status()
+            
+            # Choose color based on git status
+            if git_status['clean']:
+                branch_color = GREEN  # Clean - green
+            elif git_status['staged']:
+                branch_color = YELLOW  # Staged changes - yellow
+            else:
+                branch_color = RED     # Unstaged/untracked - red
+            
+            # Compact format with bold: (user)directory git:(branch)$
+            return f"{BOLD}({GREEN}{username}{RESET}{BOLD}){BLUE}{display_path}{RESET} {GRAY}git:({branch_color}{git_branch}{GRAY}){RESET}$ "
+        else:
+            # Compact format without git, with bold: (user)directory$
+            return f"{BOLD}({GREEN}{username}{RESET}{BOLD}){BLUE}{display_path}{RESET}$ "
     
     def run_command(self, cmd):
         """Execute shell command"""
@@ -958,8 +1006,8 @@ class SmartTerminal:
             return
         
         if cmd == 'history':
-            print(f"\n{YELLOW}📜 Command History (last 20):{RESET}")
-            for i, h in enumerate(self.command_history[-20:], 1):
+            print(f"\n{YELLOW}📜 Command History (last 200):{RESET}")
+            for i, h in enumerate(self.command_history[-200:], 1):
                 print(f"  {i}. {h}")
             print()
             return
@@ -1059,6 +1107,39 @@ class SmartTerminal:
                 print(f"   {GREEN}{count:3d}x{RESET}  {cmd}")
         print()
     
+    def get_terminal_width(self):
+        """Get terminal width, fallback to 80 if cannot determine"""
+        try:
+            import shutil
+            return shutil.get_terminal_size().columns
+        except:
+            return 80
+    
+    def strip_ansi_codes(self, text):
+        """Remove ANSI color codes from text for length calculation"""
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
+    
+    def safe_write_line(self, prompt, text):
+        """Safely write a line, handling text that might be longer than terminal width"""
+        terminal_width = self.get_terminal_width()
+        prompt_len = len(self.strip_ansi_codes(prompt))
+        available_width = terminal_width - prompt_len - 1  # -1 for safety margin
+        
+        # Clear the entire line first
+        sys.stdout.write('\r\033[K')
+        
+        if len(text) <= available_width:
+            # Text fits in one line
+            sys.stdout.write(prompt + text)
+        else:
+            # Text is too long, truncate with ellipsis
+            truncated = text[:available_width-3] + "..."
+            sys.stdout.write(prompt + truncated)
+        
+        sys.stdout.flush()
+
     def handle_input_with_suggestion(self):
         """Handle input with live suggestions using termios"""
         import termios
@@ -1071,6 +1152,8 @@ class SmartTerminal:
             tty.setraw(fd)
             
             current_input = ""
+            history_index = len(self.command_history)  # Start at end of history
+            original_input = ""  # Store original input when browsing history
             
             # Print initial prompt
             prompt = self.get_prompt()
@@ -1091,27 +1174,34 @@ class SmartTerminal:
                 # Handle Backspace
                 elif ch == '\x7f':
                     if current_input:
+                        # Reset history index when user edits
+                        history_index = len(self.command_history)
+                        original_input = ""
+                        
                         current_input = current_input[:-1]
-                        # Redraw line
-                        sys.stdout.write('\r\033[K')  # Clear line
-                        sys.stdout.write(prompt + current_input)
+                        # Redraw line safely
+                        self.safe_write_line(prompt, current_input)
                         
                         # Show suggestion
                         suggestion = self.get_suggestion(current_input)
                         if suggestion and len(suggestion) > len(current_input):
                             remaining = suggestion[len(current_input):]
-                            sys.stdout.write(f"{GRAY}{remaining}{RESET}")
-                            sys.stdout.write('\b' * len(remaining))
+                            # Check if we have space for suggestion
+                            terminal_width = self.get_terminal_width()
+                            prompt_len = len(self.strip_ansi_codes(prompt))
+                            if len(current_input) + len(remaining) + prompt_len < terminal_width - 1:
+                                sys.stdout.write(f"{GRAY}{remaining}{RESET}")
+                                sys.stdout.write('\b' * len(remaining))
                         
                         sys.stdout.flush()
                 
                 # Handle Ctrl+C
                 elif ch == '\x03':
-                    # Show ^C and move to new line, reset position
-                    sys.stdout.write('^C\r\n')
+                    # Clear the line and move to new line
+                    sys.stdout.write('\r\033[K^C\r\n')
                     sys.stdout.flush()
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                    raise KeyboardInterrupt
+                    return None  # Return None to indicate cancelled command
                 
                 # Handle Ctrl+D
                 elif ch == '\x04':
@@ -1130,17 +1220,54 @@ class SmartTerminal:
                         suggestion = self.get_suggestion(current_input)
                         if suggestion:
                             # Clear old display
-                            sys.stdout.write('\r\033[K')
                             current_input = suggestion
-                            sys.stdout.write(prompt + current_input)
+                            self.safe_write_line(prompt, current_input)
+                    
+                    # Up arrow - previous command in history
+                    elif seq == '[A':
+                        if self.command_history and history_index > 0:
+                            # Save current input if we're at the end of history
+                            if history_index == len(self.command_history):
+                                original_input = current_input
+                            
+                            history_index -= 1
+                            current_input = self.command_history[history_index]
+                            
+                            # Use safe write to handle long commands
+                            self.safe_write_line(prompt, current_input)
+                        else:
+                            # If no history or at beginning, do nothing (or beep)
+                            sys.stdout.write('\a')  # Bell sound
                             sys.stdout.flush()
                     
-                    # Up arrow - previous command
-                    elif seq == '[A':
-                        if self.command_history:
-                            sys.stdout.write('\r\033[K')
-                            current_input = self.command_history[-1]
-                            sys.stdout.write(prompt + current_input)
+                    # Down arrow - next command in history
+                    elif seq == '[B':
+                        if self.command_history and history_index < len(self.command_history):
+                            history_index += 1
+                            
+                            if history_index == len(self.command_history):
+                                # Return to original input
+                                current_input = original_input
+                            else:
+                                current_input = self.command_history[history_index]
+                            
+                            self.safe_write_line(prompt, current_input)
+                            
+                            # Show suggestion for current input
+                            if history_index == len(self.command_history):
+                                suggestion = self.get_suggestion(current_input)
+                                if suggestion and len(suggestion) > len(current_input):
+                                    remaining = suggestion[len(current_input):]
+                                    # Check if we have space for suggestion
+                                    terminal_width = self.get_terminal_width()
+                                    prompt_len = len(self.strip_ansi_codes(prompt))
+                                    if len(current_input) + len(remaining) + prompt_len < terminal_width - 1:
+                                        sys.stdout.write(f"{GRAY}{remaining}{RESET}")
+                                        sys.stdout.write('\b' * len(remaining))
+                                    sys.stdout.flush()
+                        else:
+                            # If at end or no history, do nothing (or beep)
+                            sys.stdout.write('\a')  # Bell sound
                             sys.stdout.flush()
                 
                 # Handle Tab - accept suggestion
@@ -1148,28 +1275,32 @@ class SmartTerminal:
                     suggestion = self.get_suggestion(current_input)
                     if suggestion:
                         # Clear old display
-                        sys.stdout.write('\r\033[K')
                         current_input = suggestion
-                        sys.stdout.write(prompt + current_input)
-                        sys.stdout.flush()
+                        self.safe_write_line(prompt, current_input)
                 
                 # Handle printable characters
                 elif ch >= ' ' and ch <= '~':
+                    # Reset history index when user starts typing
+                    history_index = len(self.command_history)
+                    original_input = ""
+                    
                     current_input += ch
                     
-                    # Clear line and redraw
-                    sys.stdout.write('\r\033[K')
-                    sys.stdout.write(prompt + current_input)
+                    # Clear line and redraw safely
+                    self.safe_write_line(prompt, current_input)
                     
-                    # Get and show suggestion
+                    # Get and show suggestion if there's space
                     suggestion = self.get_suggestion(current_input)
                     if suggestion and len(suggestion) > len(current_input):
                         remaining = suggestion[len(current_input):]
-                        sys.stdout.write(f"{GRAY}{remaining}{RESET}")
-                        # Move cursor back
-                        sys.stdout.write('\b' * len(remaining))
-                    
-                    sys.stdout.flush()
+                        # Check if we have space for suggestion
+                        terminal_width = self.get_terminal_width()
+                        prompt_len = len(self.strip_ansi_codes(prompt))
+                        if len(current_input) + len(remaining) + prompt_len < terminal_width - 1:
+                            sys.stdout.write(f"{GRAY}{remaining}{RESET}")
+                            # Move cursor back
+                            sys.stdout.write('\b' * len(remaining))
+                        sys.stdout.flush()
         
         except Exception as e:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
@@ -1187,7 +1318,8 @@ class SmartTerminal:
         print(f"{GREEN}╚════════════════════════════════════════╝{RESET}\n")
         
         print(f"{YELLOW}💡 Commands: stats, history, clear, exit{RESET}")
-        print(f"{GRAY}💡 The more you use it, the smarter it gets!{RESET}\n")
+        print(f"{GRAY}💡 The more you use it, the smarter it gets!{RESET}")
+        print(f"{GRAY}💡 Use ↑↓ arrows to browse command history{RESET}\n")
         
         try:
             while True:
