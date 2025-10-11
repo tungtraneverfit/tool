@@ -998,7 +998,7 @@ class SmartTerminal:
         
         # Special commands
         if cmd in ['exit', 'quit']:
-            print(f"{GREEN}👋 Goodbye!{RESET}")
+            #print(f"{GREEN}👋 Goodbye!{RESET}")
             sys.exit(0)
         
         if cmd == 'clear':
