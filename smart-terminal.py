@@ -660,11 +660,32 @@ class SmartTerminal:
             if text.startswith(alias + " "):
                 return full_cmd + text[len(alias):]
         
-        # Priority 1: Search in recent history first
-        # Look at last 100 commands for better relevance
-        for cmd in reversed(self.command_history[-100:]):
-            if cmd.startswith(text) and cmd != text:
-                return cmd
+        # Priority 1: Command name completion and exact matches
+        # Example: "gi" -> "git", "touch" -> "touch " (add space)
+        if ' ' not in text:
+            # First check for exact command matches - add space
+            known_commands = ['touch', 'mkdir', 'rm', 'mv', 'cp', 'cat', 'vim', 'nano', 
+                            'python', 'python3', 'node', 'gcc', 'g++', 'git', 'ls', 'cd',
+                            'less', 'more', 'head', 'tail', 'chmod', 'chown', 'source', 
+                            'bash', 'sh', 'echo', 'grep', 'find', 'tar', 'zip', 'unzip']
+            
+            db_commands = list(self.suggestions_db.keys())
+            all_commands = list(set(known_commands + db_commands))
+            
+            # Check for exact match first
+            if text in all_commands:
+                return text + " "
+            
+            # Then check for partial matches from database
+            matching_cmds = []
+            for cmd_name in self.suggestions_db.keys():
+                if cmd_name.startswith(text) and cmd_name != text:
+                    matching_cmds.append(cmd_name)
+            
+            # Sort by length to prefer shorter matches first
+            if matching_cmds:
+                matching_cmds.sort(key=len)
+                return matching_cmds[0]
         
         # Priority 2: File/Directory completion for certain commands
         # If command ends with space, suggest files or directories
@@ -675,7 +696,7 @@ class SmartTerminal:
             # Commands that should autocomplete with files
             file_commands = ['python', 'python3', 'node', 'gcc', 'g++', 'cat', 'vim', 
                            'nano', 'less', 'more', 'head', 'tail', 'rm', 'mv', 'cp',
-                           'chmod', 'chown', 'source', 'bash', 'sh']
+                           'chmod', 'chown', 'source', 'bash', 'sh', 'touch']
             
             # Commands that should autocomplete with directories only
             dir_commands = ['cd', 'mkdir', 'rmdir']
@@ -857,22 +878,7 @@ class SmartTerminal:
             
 
         
-        # Priority 3: Check if we can suggest a command name first
-        # Example: "gi" -> "git", "ma" -> "make"
-        # This only applies when there's no space (incomplete command name)
-        if ' ' not in text:
-            # Create a sorted list of command names for better matching
-            matching_cmds = []
-            for cmd_name in self.suggestions_db.keys():
-                if cmd_name.startswith(text) and cmd_name != text:
-                    matching_cmds.append(cmd_name)
-            
-            # Sort by length to prefer shorter matches first
-            if matching_cmds:
-                matching_cmds.sort(key=len)
-                return matching_cmds[0]
-        
-        # Priority 4: Search in database for full commands
+        # Priority 3: Search in database for full commands
         # Only when user has typed the complete command name + space or more
         first_word = text.split()[0] if text.split() else text
         if first_word in self.suggestions_db:
@@ -880,12 +886,18 @@ class SmartTerminal:
                 if cmd.startswith(text) and cmd != text:
                     return cmd
         
-        # Priority 5: Fallback - search all commands in database
+        # Priority 4: Fallback - search all commands in database
         for cmd_list in self.suggestions_db.values():
             if isinstance(cmd_list, list):
                 for cmd in cmd_list:
                     if cmd.startswith(text) and cmd != text:
                         return cmd
+        
+        # Priority 5: Search in recent history (LOWEST PRIORITY)
+        # Look at last 100 commands for better relevance
+        for cmd in reversed(self.command_history[-100:]):
+            if cmd.startswith(text) and cmd != text:
+                return cmd
         
         return ""
     
@@ -900,14 +912,36 @@ class SmartTerminal:
             self.command_history.append(cmd)
             self.save_history()
     
+    def get_git_branch(self):
+        """Get current git branch if in a git repository"""
+        try:
+            result = subprocess.run(['git', 'branch', '--show-current'], 
+                                  capture_output=True, text=True, stderr=subprocess.DEVNULL)
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except:
+            pass
+        return None
+
     def get_prompt(self):
-        """Get custom prompt"""
+        """Get custom prompt like a real terminal"""
         cwd = os.getcwd()
-        home = str(Path.home())
-        if cwd.startswith(home):
-            cwd = "~" + cwd[len(home):]
         
-        return f"{BLUE}❯{RESET} "
+        # Get just the current directory name
+        if cwd == str(Path.home()):
+            display_path = "~"
+        else:
+            display_path = os.path.basename(cwd)
+        
+        # Create a colorful prompt similar to zsh
+        username = os.getenv('USER', 'user')
+        hostname = os.getenv('HOSTNAME', os.uname().nodename.split('.')[0])
+        
+        # Add git branch if available
+        git_branch = self.get_git_branch()
+        git_info = f" {GRAY}(git:{GREEN}{git_branch}{GRAY}){RESET}" if git_branch else ""
+        
+        return f"{GREEN}{username}@{hostname}{RESET}:{BLUE}{display_path}{RESET}{git_info}$ "
     
     def run_command(self, cmd):
         """Execute shell command"""
@@ -932,6 +966,47 @@ class SmartTerminal:
         
         if cmd == 'stats':
             self.show_stats()
+            return
+        
+        # Special handling for cd command
+        if cmd.startswith('cd ') or cmd == 'cd':
+            try:
+                # Parse the cd command
+                parts = cmd.split(maxsplit=1)
+                if len(parts) == 1:
+                    # Just 'cd' - go to home directory
+                    target_dir = os.path.expanduser('~')
+                else:
+                    target_dir = parts[1]
+                    
+                    # Handle special cases
+                    if target_dir == '~':
+                        target_dir = os.path.expanduser('~')
+                    elif target_dir == '-':
+                        # cd - (go to previous directory) - for now just go to home
+                        target_dir = os.path.expanduser('~')
+                    elif target_dir == '..':
+                        target_dir = os.path.dirname(os.getcwd())
+                    elif not target_dir.startswith('/'):
+                        # Relative path
+                        target_dir = os.path.join(os.getcwd(), target_dir)
+                
+                # Change directory
+                old_dir = os.getcwd()
+                os.chdir(target_dir)
+                new_dir = os.getcwd()
+                
+                # Show change only if different from old directory
+                if old_dir != new_dir:
+                    # Show in a compact format like real terminals
+                    pass  # Don't print anything, just like real terminals
+                
+            except FileNotFoundError:
+                print(f"{RED}cd: no such file or directory: {parts[1] if len(parts) > 1 else '~'}{RESET}")
+            except PermissionError:
+                print(f"{RED}cd: permission denied: {parts[1] if len(parts) > 1 else '~'}{RESET}")
+            except Exception as e:
+                print(f"{RED}cd: {str(e)}{RESET}")
             return
         
         # Execute command with timing
