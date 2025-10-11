@@ -121,3 +121,9 @@ echo "=== PYTHON SCRIPT COMPLETED ==="
 3. **Command timeout**:
    - Các lệnh dài sẽ chạy trong background thread
    - Trang web sẽ poll kết quả mỗi giây
+# Smart terminal
+echo 'alias st="python3 ~/smart-terminal.py"' >> ~/.bashrc
+source ~/.bashrc
+
+# Giờ chỉ cần gõ
+st
