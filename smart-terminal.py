@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Smart Terminal với Autosuggestions thời gian thực
-Giống Oh My Zsh - gợi ý ngay khi gõ
+Smart Terminal with Real-time Autosuggestions
+Like Oh My Zsh - suggests as you type
 """
 
 import os
@@ -22,11 +22,19 @@ RESET = '\033[0m'
 BOLD = '\033[1m'
 
 class SmartTerminal:
-    def __init__(self):
+    def __init__(self, show_timing=False):
         self.history_file = Path.home() / ".smart_terminal_history"
         self.db_file = Path.home() / ".smart_terminal_db.json"
         self.command_history = []
         self.suggestions_db = {}
+        self.show_timing = show_timing  # Flag to control timing display
+        
+        # Command aliases (shortcuts) - defined here for immediate use
+        self.aliases = {
+            "so": "source",
+            "mk": "mkdir",
+            "his": "history"
+        }
         
         # Load data
         self.load_history()
@@ -155,7 +163,17 @@ class SmartTerminal:
                     "gcc main.c -o main",
                     "gcc -Wall -Wextra main.c -o main",
                     "gcc -g main.c -o main",
-                    "gcc -O2 main.c -o main"
+                    "gcc -O2 main.c -o main",
+                    "gcc -O3 main.c -o main",
+                    "gcc -std=c99 main.c -o main",
+                    "gcc -std=c11 main.c -o main",
+                    "gcc -std=c17 main.c -o main",
+                    "gcc -Wall -Wextra -Werror main.c -o main",
+                    "gcc -pedantic main.c -o main",
+                    "gcc -pthread main.c -o main",
+                    "gcc -lm main.c -o main",
+                    "gcc -shared -fPIC lib.c -o lib.so",
+                    "gcc *.c -o main"
                 ],
                 "cmake": [
                     "cmake .",
@@ -171,7 +189,15 @@ class SmartTerminal:
                     "make all",
                     "make install",
                     "make -j4",
-                    "make -j8"
+                    "make -j8",
+                    "make -j$(nproc)",
+                    "make test",
+                    "make check",
+                    "make distclean",
+                    "make uninstall",
+                    "make help",
+                    "make debug",
+                    "make release"
                 ],
                 
                 # Python
@@ -214,6 +240,155 @@ class SmartTerminal:
                     "pip3 install -r requirements.txt",
                     "pip3 list",
                     "pip3 freeze > requirements.txt"
+                ],
+                
+                # Node.js & JavaScript
+                "node": [
+                    "node ",
+                    "node index.js",
+                    "node app.js",
+                    "node server.js",
+                    "node -v",
+                    "node --version",
+                    "node -e \"\"",
+                    "node --inspect ",
+                    "node --watch "
+                ],
+                "npm": [
+                    "npm init",
+                    "npm init -y",
+                    "npm install",
+                    "npm install ",
+                    "npm install --save ",
+                    "npm install --save-dev ",
+                    "npm install -g ",
+                    "npm install react react-dom",
+                    "npm install express",
+                    "npm install axios",
+                    "npm install dotenv",
+                    "npm install cors",
+                    "npm install nodemon --save-dev",
+                    "npm install typescript --save-dev",
+                    "npm install @types/node --save-dev",
+                    "npm uninstall ",
+                    "npm update",
+                    "npm update ",
+                    "npm outdated",
+                    "npm list",
+                    "npm list -g --depth=0",
+                    "npm run ",
+                    "npm run dev",
+                    "npm run build",
+                    "npm run start",
+                    "npm run test",
+                    "npm start",
+                    "npm test",
+                    "npm run lint",
+                    "npm run format",
+                    "npm cache clean --force",
+                    "npm audit",
+                    "npm audit fix",
+                    "npm audit fix --force",
+                    "npm ci",
+                    "npm version patch",
+                    "npm version minor",
+                    "npm version major",
+                    "npm publish",
+                    "npm search ",
+                    "npm info ",
+                    "npm config list",
+                    "npm config get registry",
+                    "npm config set registry "
+                ],
+                "npx": [
+                    "npx ",
+                    "npx create-react-app ",
+                    "npx create-next-app ",
+                    "npx create-vite ",
+                    "npx tsc --init",
+                    "npx eslint --init",
+                    "npx prettier --write .",
+                    "npx json-server --watch db.json",
+                    "npx serve",
+                    "npx nodemon "
+                ],
+                "yarn": [
+                    "yarn",
+                    "yarn init",
+                    "yarn init -y",
+                    "yarn add ",
+                    "yarn add --dev ",
+                    "yarn add -D ",
+                    "yarn global add ",
+                    "yarn remove ",
+                    "yarn upgrade",
+                    "yarn upgrade ",
+                    "yarn install",
+                    "yarn run ",
+                    "yarn dev",
+                    "yarn build",
+                    "yarn start",
+                    "yarn test",
+                    "yarn lint",
+                    "yarn cache clean"
+                ],
+                "pnpm": [
+                    "pnpm install",
+                    "pnpm add ",
+                    "pnpm add -D ",
+                    "pnpm remove ",
+                    "pnpm update",
+                    "pnpm run ",
+                    "pnpm dev",
+                    "pnpm build",
+                    "pnpm start",
+                    "pnpm test"
+                ],
+                "nvm": [
+                    "nvm install ",
+                    "nvm install node",
+                    "nvm install --lts",
+                    "nvm use ",
+                    "nvm use node",
+                    "nvm use --lts",
+                    "nvm list",
+                    "nvm ls",
+                    "nvm ls-remote",
+                    "nvm current",
+                    "nvm alias default ",
+                    "nvm uninstall ",
+                    "nvm which ",
+                    "nvm --version"
+                ],
+                "nodemon": [
+                    "nodemon ",
+                    "nodemon index.js",
+                    "nodemon server.js",
+                    "nodemon --watch src"
+                ],
+                "tsx": [
+                    "tsx ",
+                    "tsx watch ",
+                    "tsx index.ts"
+                ],
+                "tsc": [
+                    "tsc",
+                    "tsc --init",
+                    "tsc --watch",
+                    "tsc -w",
+                    "tsc --noEmit",
+                    "tsc --build"
+                ],
+                "eslint": [
+                    "eslint .",
+                    "eslint --init",
+                    "eslint --fix .",
+                    "eslint src/"
+                ],
+                "prettier": [
+                    "prettier --write .",
+                    "prettier --check .",
+                    "prettier --write src/"
                 ],
                 
                 # Linux System
@@ -362,6 +537,70 @@ class SmartTerminal:
                     "nano ~/.bashrc"
                 ],
                 
+                # File operations
+                "rm": [
+                    "rm ",
+                    "rm -i ",
+                    "rm -f ",
+                    "rm -r ",
+                    "rm -rf ",
+                    "rm -rf *",
+                    "rm -rf ./",
+                    "rm -rI ",
+                    "rm -v "
+                ],
+                "mv": [
+                    "mv ",
+                    "mv -i ",
+                    "mv -n ",
+                    "mv -v "
+                ],
+                "cp": [
+                    "cp ",
+                    "cp -r ",
+                    "cp -a ",
+                    "cp -i ",
+                    "cp -v ",
+                    "cp -p "
+                ],
+                "mkdir": [
+                    "mkdir ",
+                    "mkdir -p ",
+                    "mkdir -v "
+                ],
+                
+                # Shell built-ins and utilities
+                "history": [
+                    "history",
+                    "history | grep ",
+                    "history | tail -n 20",
+                    "history | head -n 20",
+                    "history -c"
+                ],
+                "alias": [
+                    "alias",
+                    "alias ll='ls -la'",
+                    "alias la='ls -A'",
+                    "alias l='ls -CF'"
+                ],
+                "export": [
+                    "export PATH=$PATH:",
+                    "export ",
+                    "export -p"
+                ],
+                "source": [
+                    "source ~/.bashrc",
+                    "source ~/.bash_profile",
+                    "source "
+                ],
+                "echo": [
+                    "echo ",
+                    "echo $PATH",
+                    "echo $HOME",
+                    "echo \"\"",
+                    "echo -e "
+                ],
+                
                 # Docker
                 "docker": [
                     "docker ps",
@@ -411,20 +650,39 @@ class SmartTerminal:
         if not text:
             return ""
         
-        # Priority 1: Search in recent history first (HIGHEST PRIORITY)
+        # Priority 0: Check aliases first (HIGHEST)
+        # Example: "so" -> "source", "mk" -> "mkdir"
+        if text in self.aliases:
+            return self.aliases[text]
+        
+        # Check if typing alias with arguments: "so " -> "source "
+        for alias, full_cmd in self.aliases.items():
+            if text.startswith(alias + " "):
+                return full_cmd + text[len(alias):]
+        
+        # Priority 1: Search in recent history first
         # Look at last 100 commands for better relevance
         for cmd in reversed(self.command_history[-100:]):
             if cmd.startswith(text) and cmd != text:
                 return cmd
         
         # Priority 2: Check if we can suggest a command name first
-        # Example: "gi" -> "git"
+        # Example: "gi" -> "git", "ma" -> "make"
+        # This only applies when there's no space (incomplete command name)
         if ' ' not in text:
+            # Create a sorted list of command names for better matching
+            matching_cmds = []
             for cmd_name in self.suggestions_db.keys():
                 if cmd_name.startswith(text) and cmd_name != text:
-                    return cmd_name
+                    matching_cmds.append(cmd_name)
+            
+            # Sort by length to prefer shorter matches first
+            if matching_cmds:
+                matching_cmds.sort(key=len)
+                return matching_cmds[0]
         
         # Priority 3: Search in database for full commands
+        # Only when user has typed the complete command name + space or more
         first_word = text.split()[0] if text.split() else text
         if first_word in self.suggestions_db:
             for cmd in self.suggestions_db[first_word]:
@@ -433,9 +691,10 @@ class SmartTerminal:
         
         # Priority 4: Fallback - search all commands in database
         for cmd_list in self.suggestions_db.values():
-            for cmd in cmd_list:
-                if cmd.startswith(text) and cmd != text:
-                    return cmd
+            if isinstance(cmd_list, list):
+                for cmd in cmd_list:
+                    if cmd.startswith(text) and cmd != text:
+                        return cmd
         
         return ""
     
@@ -466,7 +725,7 @@ class SmartTerminal:
         
         # Special commands
         if cmd in ['exit', 'quit']:
-            print(f"{GREEN}👋 Tạm biệt!{RESET}")
+            print(f"{GREEN}👋 Goodbye!{RESET}")
             sys.exit(0)
         
         if cmd == 'clear':
@@ -474,7 +733,7 @@ class SmartTerminal:
             return
         
         if cmd == 'history':
-            print(f"\n{YELLOW}📜 Lịch sử lệnh (20 gần nhất):{RESET}")
+            print(f"\n{YELLOW}📜 Command History (last 20):{RESET}")
             for i, h in enumerate(self.command_history[-20:], 1):
                 print(f"  {i}. {h}")
             print()
@@ -490,24 +749,26 @@ class SmartTerminal:
             result = subprocess.run(cmd, shell=True, executable='/bin/bash')
             end_time = time.time()
             
-            # Calculate execution time
-            elapsed = end_time - start_time
-            
-            # Show execution time with color coding
-            if elapsed < 1:
-                time_str = f"{elapsed*1000:.0f}ms"
-                color = GREEN
-            elif elapsed < 60:
-                time_str = f"{elapsed:.2f}s"
-                color = YELLOW
-            else:
-                minutes = int(elapsed // 60)
-                seconds = elapsed % 60
-                time_str = f"{minutes}m {seconds:.1f}s"
-                color = RED
-            
-            # Show timing info
-            print(f"{color}⏱  {time_str}{RESET}")
+            # Only show timing if flag is enabled
+            if self.show_timing:
+                # Calculate execution time
+                elapsed = end_time - start_time
+                
+                # Show execution time with color coding
+                if elapsed < 1:
+                    time_str = f"{elapsed*1000:.0f}ms"
+                    color = GREEN
+                elif elapsed < 60:
+                    time_str = f"{elapsed:.2f}s"
+                    color = YELLOW
+                else:
+                    minutes = int(elapsed // 60)
+                    seconds = elapsed % 60
+                    time_str = f"{minutes}m {seconds:.1f}s"
+                    color = RED
+                
+                # Show timing info
+                print(f"{color}⏱  {time_str}{RESET}")
             
         except KeyboardInterrupt:
             print(f"\n{YELLOW}^C{RESET}")
@@ -520,12 +781,12 @@ class SmartTerminal:
         print(f"{GREEN}║  Smart Terminal Statistics            ║{RESET}")
         print(f"{GREEN}╚════════════════════════════════════════╝{RESET}\n")
         
-        print(f"{BLUE}📊 Thống kê:{RESET}")
-        print(f"   Tổng số lệnh: {len(self.command_history)}")
+        print(f"{BLUE}📊 Statistics:{RESET}")
+        print(f"   Total commands: {len(self.command_history)}")
         print()
         
         if self.command_history:
-            print(f"{BLUE}🔥 Top 10 lệnh:{RESET}")
+            print(f"{BLUE}🔥 Top 10 commands:{RESET}")
             from collections import Counter
             counter = Counter(self.command_history)
             for cmd, count in counter.most_common(10):
@@ -580,7 +841,8 @@ class SmartTerminal:
                 
                 # Handle Ctrl+C
                 elif ch == '\x03':
-                    sys.stdout.write('\r\n')
+                    # Show ^C and move to new line, reset position
+                    sys.stdout.write('^C\r\n')
                     sys.stdout.flush()
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
                     raise KeyboardInterrupt
@@ -652,12 +914,14 @@ class SmartTerminal:
         # Welcome message
         print(f"{GREEN}╔════════════════════════════════════════╗{RESET}")
         print(f"{GREEN}║  ✨ Smart Terminal v2.0               ║{RESET}")
-        print(f"{GREEN}║  Gợi ý dựa trên history của bạn       ║{RESET}")
-        print(f"{GREEN}║  Nhấn Tab hoặc → để chấp nhận         ║{RESET}")
+        print(f"{GREEN}║  Suggestions based on your history    ║{RESET}")
+        print(f"{GREEN}║  Press Tab or → to accept             ║{RESET}")
+        if self.show_timing:
+            print(f"{GREEN}║  Timing mode: ENABLED                 ║{RESET}")
         print(f"{GREEN}╚════════════════════════════════════════╝{RESET}\n")
         
-        print(f"{YELLOW}💡 Lệnh: stats, history, clear, exit{RESET}")
-        print(f"{GRAY}💡 Càng dùng nhiều, gợi ý càng thông minh!{RESET}\n")
+        print(f"{YELLOW}💡 Commands: stats, history, clear, exit{RESET}")
+        print(f"{GRAY}💡 The more you use it, the smarter it gets!{RESET}\n")
         
         try:
             while True:
@@ -672,16 +936,24 @@ class SmartTerminal:
                         self.add_to_history(cmd)
                 
                 except KeyboardInterrupt:
-                    print(f"{YELLOW}Nhấn Ctrl+D hoặc gõ 'exit' để thoát{RESET}")
+                    # Ctrl+C pressed - just continue to next prompt
                     continue
                 
         except (EOFError, SystemExit):
-            print(f"{GREEN}👋 Tạm biệt!{RESET}")
+            print(f"{GREEN}👋 Goodbye!{RESET}")
 
 def main():
+    import argparse
+    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Smart Terminal with autosuggestions')
+    parser.add_argument('-t', '--timing', action='store_true', 
+                        help='Enable timing mode - show execution time after each command')
+    args = parser.parse_args()
+    
     # Handle signals
     def signal_handler(sig, frame):
-        print(f"\n{GREEN}👋 Tạm biệt!{RESET}")
+        print(f"\n{GREEN}👋 Goodbye!{RESET}")
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)
@@ -691,8 +963,8 @@ def main():
         print("Error: Must run in an interactive terminal")
         sys.exit(1)
     
-    # Run terminal
-    terminal = SmartTerminal()
+    # Run terminal with timing mode if specified
+    terminal = SmartTerminal(show_timing=args.timing)
     terminal.run()
 
 if __name__ == "__main__":
