@@ -666,7 +666,198 @@ class SmartTerminal:
             if cmd.startswith(text) and cmd != text:
                 return cmd
         
-        # Priority 2: Check if we can suggest a command name first
+        # Priority 2: File/Directory completion for certain commands
+        # If command ends with space, suggest files or directories
+        if ' ' in text:
+            parts = text.split()
+            cmd_name = parts[0]
+            
+            # Commands that should autocomplete with files
+            file_commands = ['python', 'python3', 'node', 'gcc', 'g++', 'cat', 'vim', 
+                           'nano', 'less', 'more', 'head', 'tail', 'rm', 'mv', 'cp',
+                           'chmod', 'chown', 'source', 'bash', 'sh']
+            
+            # Commands that should autocomplete with directories only
+            dir_commands = ['cd', 'mkdir', 'rmdir']
+            
+            # All commands that support path completion
+            all_path_commands = file_commands + dir_commands
+            
+            # Handle path completion (works for both files and directories)
+            if cmd_name in all_path_commands:
+                # Get the last argument (path being typed)
+                if len(parts) > 1:
+                    current_path = parts[-1]
+                else:
+                    current_path = ""
+                
+                # Check if we're completing after a slash
+                if '/' in current_path:
+                    # Split path into directory and partial name
+                    path_parts = current_path.rsplit('/', 1)
+                    base_dir = path_parts[0]
+                    partial = path_parts[1] if len(path_parts) > 1 else ""
+                    
+                    # Determine the directory to search in
+                    if base_dir.startswith('/'):
+                        search_dir = base_dir
+                    elif base_dir.startswith('~'):
+                        search_dir = os.path.expanduser(base_dir)
+                    else:
+                        search_dir = os.path.join(os.getcwd(), base_dir)
+                    
+                    try:
+                        if os.path.isdir(search_dir):
+                            items = []
+                            
+                            # For directory-only commands, only show directories
+                            if cmd_name in dir_commands:
+                                items = [d for d in os.listdir(search_dir)
+                                       if os.path.isdir(os.path.join(search_dir, d))
+                                       and d.startswith(partial)
+                                       and not d.startswith('.')]
+                            
+                            # For file commands, show files first, then directories
+                            else:
+                                files = []
+                                dirs = []
+                                
+                                # Get file extension filter based on command
+                                if cmd_name in ['python', 'python3']:
+                                    files = [f for f in os.listdir(search_dir)
+                                            if os.path.isfile(os.path.join(search_dir, f))
+                                            and f.endswith('.py')
+                                            and f.startswith(partial)
+                                            and not f.startswith('.')]
+                                elif cmd_name == 'node':
+                                    files = [f for f in os.listdir(search_dir)
+                                            if os.path.isfile(os.path.join(search_dir, f))
+                                            and f.endswith('.js')
+                                            and f.startswith(partial)
+                                            and not f.startswith('.')]
+                                elif cmd_name in ['gcc', 'g++']:
+                                    files = [f for f in os.listdir(search_dir)
+                                            if os.path.isfile(os.path.join(search_dir, f))
+                                            and f.endswith(('.c', '.cpp', '.cc', '.h', '.hpp'))
+                                            and f.startswith(partial)
+                                            and not f.startswith('.')]
+                                else:
+                                    files = [f for f in os.listdir(search_dir)
+                                            if os.path.isfile(os.path.join(search_dir, f))
+                                            and f.startswith(partial)
+                                            and not f.startswith('.')]
+                                
+                                # Also get directories as fallback
+                                dirs = [d for d in os.listdir(search_dir)
+                                       if os.path.isdir(os.path.join(search_dir, d))
+                                       and d.startswith(partial)
+                                       and not d.startswith('.')]
+                                
+                                # Prioritize files, fallback to directories
+                                items = files if files else dirs
+                            
+                            if items:
+                                items.sort()
+                                # Reconstruct the full path
+                                new_path = base_dir + '/' + items[0]
+                                return ' '.join(parts[:-1]) + (' ' if len(parts) > 1 else '') + new_path
+                    except:
+                        pass
+                
+                # No slash - complete from current directory
+                elif text.endswith(' '):
+                    try:
+                        current_dir = os.getcwd()
+                        items = []
+                        
+                        # For directory commands
+                        if cmd_name in dir_commands:
+                            items = [d for d in os.listdir(current_dir) 
+                                   if os.path.isdir(os.path.join(current_dir, d)) 
+                                   and not d.startswith('.')]
+                        
+                        # For file commands
+                        else:
+                            files = []
+                            
+                            if cmd_name in ['python', 'python3']:
+                                files = [f for f in os.listdir(current_dir) if f.endswith('.py')]
+                            elif cmd_name == 'node':
+                                files = [f for f in os.listdir(current_dir) if f.endswith('.js')]
+                            elif cmd_name in ['gcc', 'g++']:
+                                files = [f for f in os.listdir(current_dir) 
+                                        if f.endswith(('.c', '.cpp', '.cc', '.h', '.hpp'))]
+                            else:
+                                files = os.listdir(current_dir)
+                            
+                            # Filter out hidden files
+                            files = [f for f in files if not f.startswith('.')]
+                            
+                            # Get directories as fallback
+                            dirs = [d for d in os.listdir(current_dir) 
+                                   if os.path.isdir(os.path.join(current_dir, d)) 
+                                   and not d.startswith('.')]
+                            
+                            # Prioritize files, fallback to directories
+                            items = files if files else dirs
+                        
+                        if items:
+                            items.sort()
+                            return text + items[0]
+                    except:
+                        pass
+                
+                # Typing partial name (no slash yet)
+                elif len(parts) > 1 and current_path and '/' not in current_path:
+                    try:
+                        current_dir = os.getcwd()
+                        items = []
+                        
+                        # For directory commands
+                        if cmd_name in dir_commands:
+                            items = [d for d in os.listdir(current_dir) 
+                                   if os.path.isdir(os.path.join(current_dir, d)) 
+                                   and d.startswith(current_path) 
+                                   and not d.startswith('.')]
+                        
+                        # For file commands
+                        else:
+                            files = []
+                            
+                            if cmd_name in ['python', 'python3']:
+                                files = [f for f in os.listdir(current_dir) 
+                                        if f.endswith('.py') and f.startswith(current_path)]
+                            elif cmd_name == 'node':
+                                files = [f for f in os.listdir(current_dir) 
+                                        if f.endswith('.js') and f.startswith(current_path)]
+                            elif cmd_name in ['gcc', 'g++']:
+                                files = [f for f in os.listdir(current_dir) 
+                                        if f.endswith(('.c', '.cpp', '.cc', '.h', '.hpp')) 
+                                        and f.startswith(current_path)]
+                            else:
+                                files = [f for f in os.listdir(current_dir) if f.startswith(current_path)]
+                            
+                            # Filter out hidden files
+                            files = [f for f in files if not f.startswith('.')]
+                            
+                            # Get directories as fallback
+                            dirs = [d for d in os.listdir(current_dir) 
+                                   if os.path.isdir(os.path.join(current_dir, d)) 
+                                   and d.startswith(current_path) 
+                                   and not d.startswith('.')]
+                            
+                            # Prioritize files, fallback to directories
+                            items = files if files else dirs
+                        
+                        if items:
+                            items.sort()
+                            return ' '.join(parts[:-1]) + ' ' + items[0]
+                    except:
+                        pass
+            
+
+        
+        # Priority 3: Check if we can suggest a command name first
         # Example: "gi" -> "git", "ma" -> "make"
         # This only applies when there's no space (incomplete command name)
         if ' ' not in text:
@@ -681,7 +872,7 @@ class SmartTerminal:
                 matching_cmds.sort(key=len)
                 return matching_cmds[0]
         
-        # Priority 3: Search in database for full commands
+        # Priority 4: Search in database for full commands
         # Only when user has typed the complete command name + space or more
         first_word = text.split()[0] if text.split() else text
         if first_word in self.suggestions_db:
@@ -689,7 +880,7 @@ class SmartTerminal:
                 if cmd.startswith(text) and cmd != text:
                     return cmd
         
-        # Priority 4: Fallback - search all commands in database
+        # Priority 5: Fallback - search all commands in database
         for cmd_list in self.suggestions_db.values():
             if isinstance(cmd_list, list):
                 for cmd in cmd_list:
